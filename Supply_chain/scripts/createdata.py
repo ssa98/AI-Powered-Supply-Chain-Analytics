@@ -41,11 +41,83 @@ warehouse_to_region = {
 }
 df['Region'] = df['Warehouse'].map(warehouse_to_region).fillna('Other')
 
-# ✅ Derive extra business features (optional but great for dashboard)
+# ✅ Derive extra business features 
 df['Revenue'] = df['Order_Demand'] * df['Selling_Price']
 df['Profit'] = df['Revenue'] - (df['Order_Demand'] * df['Cost_Price'])
+
+# 6) Time columns
+df['Year'] = df['Date'].dt.year
+df['Month'] = df['Date'].dt.month
+df['Week_Start'] = df['Date'].dt.to_period('W').apply(lambda r: r.start_time)  # week start (Monday)
 
 # ✅ Save the enhanced dataset
 df.to_csv("enhanced_supplychain_data.csv", index=False)
 
-df.head(10)
+# 7) Weekly aggregation
+weekly_df = (
+    df.groupby(['Product_Code', 'Warehouse', 'Week_Start'], as_index=False)
+      .agg(
+          Total_Demand = ('Order_Demand', 'sum'),
+          Total_Revenue = ('Revenue', 'sum'),
+          Total_Profit = ('Profit', 'sum'),
+          Avg_Lead_Time = ('Lead_Time_Days', 'mean')
+      )
+)
+
+# 8) Monthly aggregation
+monthly_df = (
+    df.groupby(['Product_Code', 'Warehouse', 'Year', 'Month'], as_index=False)
+      .agg(
+          Total_Demand = ('Order_Demand', 'sum'),
+          Total_Revenue = ('Revenue', 'sum'),
+          Total_Profit = ('Profit', 'sum'),
+          Avg_Lead_Time = ('Lead_Time_Days', 'mean')
+      )
+)
+
+weekly_df.to_csv("weekly_demand.csv", index=False)
+monthly_df.to_csv("monthly_demand.csv", index=False)
+
+monthly_df['Date'] = pd.to_datetime(
+    monthly_df[['Year', 'Month']].assign(DAY=1)
+)
+
+forecast_list = []
+
+for (product, whse), group in monthly_df.groupby(["Product_Code", "Warehouse"]):
+
+    df_p = group[["Date", "Total_Demand"]].rename(
+        columns={"Date": "ds", "Total_Demand": "y"}
+    )
+
+    # Initialize model
+    model = NeuralProphet(
+        yearly_seasonality=True,
+        weekly_seasonality=False,
+        daily_seasonality=False,
+        epochs=150
+    )
+
+    # Fit the model
+    model.fit(df_p, freq="M")
+
+    # Forecast next 3 months
+    future = model.make_future_dataframe(df_p, periods=3)
+    forecast = model.predict(future)
+
+    # Add product & warehouse info
+    forecast["Product_Code"] = product
+    forecast["Warehouse"] = whse
+
+    forecast_list.append(forecast)
+
+# Combine all forecasts
+final_forecast = pd.concat(forecast_list).reset_index(drop=True)
+
+# Save results
+final_forecast.to_csv("NeuralProphet_Forecast.csv", index=False)
+
+print("Forecast completed & saved as NeuralProphet_Forecast.csv")
+
+
+
