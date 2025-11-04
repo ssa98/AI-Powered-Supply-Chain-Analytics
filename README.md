@@ -17,3 +17,23 @@ Data creation/ Data Analysis
 To create a random data for the project run this script
 [createdata.py]
 
+
+**Phase 2**
+Data Cleaning & Feature Engineering (Python)
+
+- Handle Missing & Negative Demand:
+    Replace negative Order_Demand values with absolute numbers.
+    Fill any missing values with median.
+
+- Feature Engineering:
+    Revenue = Order_Demand * Selling_Price
+    Profit = Revenue - (Order_Demand * Cost_Price)
+
+- Time Aggregation:
+    Aggregate daily demand → weekly/monthly demand per product.
+
+- Save Cleaned Data 
+
+**Phase 3** 
+AI Demand Forecasting (Python)
+- Predict next 3 months’ demand for each product using NeuralProphet model
